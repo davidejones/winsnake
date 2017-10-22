@@ -1,13 +1,82 @@
 #include <windows.h>
-#include <stdint.h>
+#include <cstdint>
+#include <ctime>
+#include <iostream>
 
 static bool Running;
 static BITMAPINFO BitmapInfo;
 static void *BitmapMemory;
 static int BitmapWidth;
 static int BitmapHeight;
+static int BytesPerPixel = 4;
 
-void Win322ResizeDIBSection(int Width, int Height) {
+int applex = -1;
+int appley = -1;
+
+void drawRect(int rectx, int recty, int width, int height, int hexColor) {
+    unsigned char R = static_cast<unsigned char>(((hexColor >> 16) & 0xFF));
+    unsigned char G = static_cast<unsigned char>(((hexColor >> 8) & 0xFF));
+    unsigned char B = static_cast<unsigned char>((hexColor & 0xFF));
+    int Pitch = BitmapWidth*BytesPerPixel;
+    uint8_t *Row = (uint8_t *)BitmapMemory;
+    for(int Y = 0; Y < BitmapHeight; ++Y) {
+        uint8_t *Pixel = (uint8_t *)Row;
+        for(int X = 0; X < BitmapWidth; ++X) {
+            if( (X >= rectx && Y >= recty) && (X <= (rectx + width) && Y <= (recty + height)) )
+            {
+                //blue
+                *Pixel = B;
+                ++Pixel;
+
+                //green
+                *Pixel = G;
+                ++Pixel;
+
+                //red
+                *Pixel = R;
+                ++Pixel;
+
+                *Pixel = 0;
+                ++Pixel;
+            } else {
+                // move along
+                ++Pixel;
+                ++Pixel;
+                ++Pixel;
+                ++Pixel;
+            }
+        }
+        Row += Pitch;
+    }
+}
+
+int RandRange(int range_min, int range_max) {
+    static bool first = true;
+    if ( first )
+    {
+        srand(time(NULL)); //seeding for the first time only!
+        first = false;
+    }
+    return range_min + rand() % (range_max - range_min);
+}
+
+void setApple() {
+    /*
+     * Randomly place a 10x10 green apple on screen
+     * if snake exists in random location generate again
+     */
+    int x = RandRange(0, BitmapWidth-10);
+    int y = RandRange(0, BitmapHeight-10);
+    std::cout << "setting apple.." << std::endl;
+    std::cout << x << "," << y << std::endl;
+    drawRect(x, y, 10, 10, 0x00FF00);
+    applex = x;
+    appley = y;
+}
+
+void init(int Width, int Height) {
+    // we are initializing the bitmap memory buffer here
+    // this can be called on resize too but for now stick to fixed window
 
     if(BitmapMemory) {
         VirtualFree(BitmapMemory, 0, MEM_RELEASE);
@@ -28,32 +97,13 @@ void Win322ResizeDIBSection(int Width, int Height) {
     BitmapInfo.bmiHeader.biClrUsed = 0;
     BitmapInfo.bmiHeader.biClrImportant = 0;
 
-    int BytesPerPixel = 4;
     int BitmapMemorySize = (Width*Height)*BytesPerPixel;
     BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
-    int Pitch = Width*BytesPerPixel;
-    uint8_t *Row = (uint8_t *)BitmapMemory;
-    for(int Y = 0; Y < BitmapHeight; ++Y) {
-        uint8_t *Pixel = (uint8_t *)Row;
-        for(int X = 0; X < BitmapWidth; ++X) {
-            *Pixel = 255;
-            ++Pixel;
-
-            *Pixel = 0;
-            ++Pixel;
-
-            *Pixel = 0;
-            ++Pixel;
-
-            *Pixel = 0;
-            ++Pixel;
-        }
-        Row += Pitch;
-    }
 }
 
-void Win32UpdateWindow(HDC DeviceContext, RECT *WindowRect, int X, int Y, int Width, int Height) {
-    // rect to rect copy
+void draw(HDC DeviceContext, RECT *WindowRect, int X, int Y, int Width, int Height) {
+    // update memory state bitmap to window
+    // this is a rect to rect copy
     int WindowWidth = WindowRect->right - WindowRect->left;
     int WindowHeight = WindowRect->bottom - WindowRect->top;
     StretchDIBits(
@@ -65,6 +115,39 @@ void Win32UpdateWindow(HDC DeviceContext, RECT *WindowRect, int X, int Y, int Wi
         &BitmapInfo,
         DIB_RGB_COLORS, SRCCOPY
     );
+}
+
+void update() {
+    // update game simulation
+
+    //drawRect(200, 200, 300, 300);
+
+    if(applex == -1 && appley == -1) {
+        setApple();
+    }
+
+    /*int Pitch = Width*BytesPerPixel;
+    uint8_t *Row = (uint8_t *)BitmapMemory;
+    for(int Y = 0; Y < BitmapHeight; ++Y) {
+        uint8_t *Pixel = (uint8_t *)Row;
+        for(int X = 0; X < BitmapWidth; ++X) {
+            //blue
+            *Pixel = 255;
+            ++Pixel;
+
+            //green
+            *Pixel = 0;
+            ++Pixel;
+
+            //red
+            *Pixel = 0;
+            ++Pixel;
+
+            *Pixel = 0;
+            ++Pixel;
+        }
+        Row += Pitch;
+    }*/
 }
 
 LRESULT CALLBACK
@@ -79,7 +162,7 @@ MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
             GetClientRect(Window, &ClientRect);
             int Width = ClientRect.right - ClientRect.left;
             int Height = ClientRect.bottom - ClientRect.top;
-            Win322ResizeDIBSection(Width, Height);
+            init(Width, Height);
         } break;
 
         case WM_CLOSE:
@@ -108,8 +191,9 @@ MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 
             RECT ClientRect;
             GetClientRect(Window, &ClientRect);
-
-            Win32UpdateWindow(DeviceContext, &ClientRect, X, Y, Width, Height);
+            update();
+            draw(DeviceContext, &ClientRect, X, Y, Width, Height);
+            EndPaint(Window, &Paint);
         } break;
 
         default:
@@ -148,10 +232,19 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
                     if(Message.message == WM_QUIT) {
                         Running = false;
                     }
-
                     TranslateMessage(&Message);
                     DispatchMessageA(&Message);
                 }
+
+                HDC DeviceContext = GetDC(WindowHandle);
+                RECT ClientRect;
+                GetClientRect(WindowHandle, &ClientRect);
+                int WindowWidth = ClientRect.right - ClientRect.left;
+                int WindowHeight = ClientRect.bottom - ClientRect.top;
+
+                update();
+                draw(DeviceContext, &ClientRect, 0, 0, WindowWidth, WindowHeight);
+                ReleaseDC(WindowHandle, DeviceContext);
             }
         }
         else

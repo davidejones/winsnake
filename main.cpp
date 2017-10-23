@@ -82,16 +82,31 @@ void setApple() {
     int x = std::floor(RandRange(0, BitmapWidth/10));
     int y = std::floor(RandRange(0, BitmapHeight/10));
     // set to 1 to represent apple
-    std::cout << "setting apple.." << std::endl;
-    std::cout << x << "," << y << std::endl;
+    //std::cout << "setting apple.." << std::endl;
+    //std::cout << x << "," << y << std::endl;
     if(data[y][x] == 0) {
         data[y][x] = 1;
         applex = x;
         appley = y;
     } else {
-        std::cout << "retry.." << std::endl;
+        //std::cout << "retry.." << std::endl;
         setApple();
     }
+}
+
+void collectApple() {
+    // play sound
+    // increase speed and increase snake
+    Point newp = Point();
+    newp.x = snakepoints[snakepoints.size()-1].x;
+    newp.y = snakepoints[snakepoints.size()-1].y;
+    snakepoints.push_back(newp);
+
+    KillTimer(WindowHandle, IDT_TIMER1);
+    SetTimer(WindowHandle, IDT_TIMER1, 20, NULL);
+
+    // set new apple
+    setApple();
 }
 
 void moveSnake() {
@@ -441,8 +456,11 @@ void update() {
 
     // is the snake head colliding with apple?
     if(snakepoints[0].x == applex && snakepoints[0].y == appley) {
-        setApple();
+        collectApple();
     }
+
+    // check if snake is colliding with itself
+    //
 
     setVectorToMemory();
 }
@@ -502,20 +520,28 @@ MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
                     //setApple();
                     break;
                 case VK_LEFT:
-                    direction.x = -1;
-                    direction.y = 0;
+                    if(direction.x != 1) {
+                        direction.x = -1;
+                        direction.y = 0;
+                    }
                     break;
                 case VK_RIGHT:
-                    direction.x = 1;
-                    direction.y = 0;
+                    if(direction.x != -1) {
+                        direction.x = 1;
+                        direction.y = 0;
+                    }
                     break;
                 case VK_UP:
-                    direction.x = 0;
-                    direction.y = -1;
+                    if(direction.y != 1) {
+                        direction.x = 0;
+                        direction.y = -1;
+                    }
                     break;
                 case VK_DOWN:
-                    direction.x = 0;
-                    direction.y = 1;
+                    if(direction.y != -1) {
+                        direction.x = 0;
+                        direction.y = 1;
+                    }
                     break;
                 case VK_ESCAPE:
                     Running = false;
@@ -548,7 +574,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
     if(RegisterClassA(&WindowClass))
     {
         WindowHandle = CreateWindowExA(
-                0, WindowClass.lpszClassName, "Snake",
+                0, WindowClass.lpszClassName, "WinSnake",
                 WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
                 CW_USEDEFAULT, CW_USEDEFAULT,
                 800, 600, 0, 0, Instance, 0

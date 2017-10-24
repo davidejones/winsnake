@@ -263,6 +263,23 @@ void setVectorToMemory() {
     }
 }
 
+void gameOver() {
+    KillTimer(WindowHandle, IDT_TIMER1);
+
+    int count = 0;
+    for (int y = 0; y < data.size(); y++) {
+        for (int x = 0; x < data[y].size(); x++) {
+            data[y][x] = count;
+            count++;
+            if(count >= 4) {
+                count = 0;
+            }
+        }
+    }
+
+    setVectorToMemory();
+}
+
 void init(int Width, int Height) {
     // we are initializing the bitmap memory buffer here
     // this can be called on resize too but for now stick to fixed window
@@ -300,22 +317,22 @@ void init(int Width, int Height) {
 
     // init snake
     Point p1 = Point();
-    p1.x = 0;
+    p1.x = 3;
     p1.y = 0;
     snakepoints.push_back(p1);
 
     Point p2 = Point();
-    p2.x = 1;
+    p2.x = 2;
     p2.y = 0;
     snakepoints.push_back(p2);
 
     Point p3 = Point();
-    p3.x = 2;
+    p3.x = 1;
     p3.y = 0;
     snakepoints.push_back(p3);
 
     Point p4 = Point();
-    p4.x = 3;
+    p4.x = 0;
     p4.y = 0;
     snakepoints.push_back(p4);
 
@@ -460,7 +477,13 @@ void update() {
     }
 
     // check if snake is colliding with itself
-    //
+    for (int i = 0; i < snakepoints.size(); i++) {
+        if(i > 0) {
+            if(snakepoints[i].x == snakepoints[0].x && snakepoints[i].y == snakepoints[0].y) {
+                gameOver();
+            }
+        }
+    }
 
     setVectorToMemory();
 }

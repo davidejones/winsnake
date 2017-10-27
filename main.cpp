@@ -12,8 +12,8 @@ static int BitmapWidth;
 static int BitmapHeight;
 static int BytesPerPixel = 4;
 static HWND WindowHandle;
-
-
+static int gameover_row = 0;
+static bool wipedown = true;
 struct Point
 {
     int x;
@@ -26,7 +26,9 @@ std::vector< std::vector<int> > data;
 Point direction = Point();
 std::vector<Point> snakepoints;
 
+int timer_amount = 100;
 #define IDT_TIMER1 1
+#define IDT_TIMER2 2
 
 void drawRect(int rectx, int recty, int width, int height, int hexColor) {
     unsigned char R = static_cast<unsigned char>(((hexColor >> 16) & 0xFF));
@@ -103,7 +105,11 @@ void collectApple() {
     snakepoints.push_back(newp);
 
     KillTimer(WindowHandle, IDT_TIMER1);
-    SetTimer(WindowHandle, IDT_TIMER1, 20, NULL);
+    timer_amount -= 5;
+    if(timer_amount <= 20) {
+        timer_amount = 20;
+    }
+    SetTimer(WindowHandle, IDT_TIMER1, timer_amount, NULL);
 
     // set new apple
     setApple();
@@ -235,6 +241,22 @@ void setVectorToMemory() {
 
                 *Pixel = 0;
                 ++Pixel;
+            } else if(data[vecy][vecx] == 4) {
+                //set to purple
+                //blue
+                *Pixel = 226;
+                ++Pixel;
+
+                //green
+                *Pixel = 43;
+                ++Pixel;
+
+                //red
+                *Pixel = 138;
+                ++Pixel;
+
+                *Pixel = 0;
+                ++Pixel;
             } else {
                 //blue
                 *Pixel = 0;
@@ -265,19 +287,36 @@ void setVectorToMemory() {
 
 void gameOver() {
     KillTimer(WindowHandle, IDT_TIMER1);
+    gameover_row = 0;
+    SetTimer(WindowHandle, IDT_TIMER2, 20, NULL);
+}
 
-    int count = 0;
-    for (int y = 0; y < data.size(); y++) {
-        for (int x = 0; x < data[y].size(); x++) {
-            data[y][x] = count;
-            count++;
-            if(count >= 4) {
-                count = 0;
-            }
+void gameover_update_complete() {
+    KillTimer(WindowHandle, IDT_TIMER2);
+    // reset game here..
+}
+
+void gameover_update() {
+    if(wipedown) {
+        for (int x = 0; x <= data[gameover_row].size(); x++) {
+            data[gameover_row][x] = 4;
+        }
+        setVectorToMemory();
+        gameover_row++;
+        if(gameover_row >= data.size()) {
+            wipedown = false;
+        }
+    } else {
+        for (int x = data[gameover_row].size(); x > -1; x--) {
+            data[gameover_row][x] = 0;
+        }
+        setVectorToMemory();
+        gameover_row--;
+        if(gameover_row < 0) {
+            wipedown = true;
+            gameover_update_complete();
         }
     }
-
-    setVectorToMemory();
 }
 
 void init(int Width, int Height) {
@@ -459,9 +498,6 @@ void draw(HDC DeviceContext, RECT *WindowRect, int X, int Y, int Width, int Heig
         &BitmapInfo,
         DIB_RGB_COLORS, SRCCOPY
     );
-
-
-    //pDC->StretchBlt(150,40,bm.bmWidth,bm.bmHeight,&memdc,0,bm.bmHeight-1,bm.bmWidth,-bm.bmHeight,SRCCOPY);
 }
 
 void update() {
@@ -541,6 +577,7 @@ MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
             switch(WParam) {
                 case VK_SPACE:
                     //setApple();
+                    //gameOver();
                     break;
                 case VK_LEFT:
                     if(direction.x != 1) {
@@ -574,7 +611,17 @@ MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 
         case WM_TIMER:
         {
-            update();
+            switch (WParam)
+            {
+                case IDT_TIMER1:
+                    // process the gameplay timer
+                    update();
+                    return 0;
+                case IDT_TIMER2:
+                    // process the gameover timer
+                    gameover_update();
+                    return 0;
+            }
         } break;
 
         default:
@@ -604,7 +651,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
         );
         if(WindowHandle)
         {
-            SetTimer(WindowHandle, IDT_TIMER1, 300, NULL);
+            SetTimer(WindowHandle, IDT_TIMER1, timer_amount, NULL);
 
             Running = true;
             while(Running)
